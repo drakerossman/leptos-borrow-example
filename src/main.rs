@@ -49,7 +49,7 @@ pub fn TopLevelWithItems() -> impl IntoView {
     };
 
     view! {
-        <div class="filtering-menu" style="padding: 10px; nbackground-color: rgb(255, 241, 225); display: grid; grid-template-columns: max-content;">
+        <div class="filtering-menu" style="padding: 10px; background-color: rgb(255, 241, 225); display: grid; grid-template-columns: max-content;">
             <FilterInputAndCheckboxes/>
             <AllFilteredItems
                 filtered_items
@@ -82,16 +82,16 @@ pub fn FilterInputAndCheckboxes() -> impl IntoView {
 
     view! {
         <div>
-            <div class="filter-input-and-checkboxes" style="padding: 10px; nbackground-color: bisque;">
+            <div class="filter-input-and-checkboxes" style="padding: 10px; background-color: bisque;">
 
-                <div class="filter-input" style="padding: 10px; nbackground-color: burlywood;">
+                <div class="filter-input" style="padding: 10px; background-color: burlywood;">
                     <input></input>
                     <button>"Filter"</button>
                 </div>
 
                 <br/>
 
-                <div class="to-filter-checkboxes" style="padding: 10px; nbackground-color: burlywood;">
+                <div class="to-filter-checkboxes" style="padding: 10px; background-color: burlywood;">
                         <input type="checkbox" id="title-to-filter-checkbox" name="title-to-filter-checkbox"
                             prop:checked=title_checkbox
                             on:input=move |ev| set_title_checkbox.set(event_target_checked(&ev))
@@ -197,7 +197,7 @@ pub fn FilteredItemWithCheckboxes
     };
 
     view! {
-        <div prop:filtered_value=&filtered_value class="filtered-item" style="padding: 10px; nbackground-color: burlywood;">
+        <div prop:filtered_value=&filtered_value class="filtered-item" style="padding: 10px; background-color: burlywood;">
                 {&filtered_value}
             <br/>
                 <input type="checkbox" class="filtered-title-checkbox" name="filtered-title-checkbox"
