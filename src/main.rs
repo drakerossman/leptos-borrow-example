@@ -1,51 +1,109 @@
 
-use wasm_bindgen::JsValue;
-use leptos::{component, create_signal, view, For, IntoView, ReadSignal, WriteSignal, SignalGet, SignalSet, event_target_checked, mount_to_body};
+use leptos::{component, create_signal, view, For, IntoView, WriteSignal, SignalGet, SignalSet, event_target_checked, mount_to_body};
 use serde_json;
+use serde_json::{Value, json};
 use serde::{Deserialize, Serialize};
 use gloo_console::log as gloo_log;
-
+use web_sys::window;
 
 fn main() {
     mount_to_body(|| view! { <TopLevelWithItems/>} )
 }
 
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
+pub struct FilteredItem
+{
+    value   : String,
+    title   : bool,
+    oplink  : bool,
+    comment : bool,
+    username: bool,
+}
+
 #[component]
 pub fn TopLevelWithItems() -> impl IntoView {
 
-    let filtered_items_from_localstorage = serde_json::json!(
-        [
+    let initial_filtered_items = serde_json::json!(
+        {
+            "something":
             {
-                "value": "something",
                 "title": true,
                 "oplink": true,
                 "comment": true,
                 "username": true,
             },
+
+            "something else":
             {
-                "value": "something else",
                 "title": true,
                 "oplink": true,
                 "comment": true,
                 "username": true,
             }
-        ]
+        }
     );
 
-    let vec_of_filtered_items: Vec<FilteredItem> = serde_json::from_value(filtered_items_from_localstorage).unwrap();
+    let filtered_items_as_json_string =
+        serde_json::to_string_pretty(&initial_filtered_items.clone())
+        .unwrap();
 
-    let (filtered_items, set_filtered_items) = create_signal(vec_of_filtered_items);
+    let local_storage = window()
+        .unwrap()
+        .local_storage()
+        .unwrap()
+        .unwrap();
 
-    let update_items_in_localstorage = move || {
+    local_storage
+        .set_item("filtered_items", &filtered_items_as_json_string)
+        .unwrap();
 
-        let clone_of_filtered_items = filtered_items.get();
+    let filtered_items: Vec<FilteredItem>
+        = match initial_filtered_items.clone()
+        {
+            Value::Object(map)
+                =>
+                    map
+                        .into_iter()
+                        .filter_map(
+                            |(key, value)| match value
+                            {
+                                Value::Object(value_map) => Some(
+                                    FilteredItem
+                                    {
+                                        value: key,
+                                        title: value_map.get("title")?.as_bool()?,
+                                        oplink: value_map.get("oplink")?.as_bool()?,
+                                        comment: value_map.get("comment")?.as_bool()?,
+                                        username: value_map.get("username")?.as_bool()?,
+                                    }
+                                ),
+                                _ => None,
+                            }
+                        )
+                        .collect(),
+            _
+                =>
+                    Vec::new(),
+        };
 
-        let filtered_items_as_json_string = serde_json::to_string_pretty(&clone_of_filtered_items).unwrap();
+    let (get_dummy_signal, set_dummy_signal) = create_signal(0);
 
-        let js_value_from_str = JsValue::from_str(&filtered_items_as_json_string);
+    let read_local_storage = move || {
 
-        gloo_log!("Filtered Items are:\n");
-        gloo_log!(js_value_from_str);
+        get_dummy_signal.get();
+
+        let local_storage = window()
+            .unwrap()
+            .local_storage()
+            .unwrap()
+            .unwrap();
+
+        let filtered_items_as_json_string = local_storage
+            .get_item("filtered_items")
+            .unwrap()
+            .unwrap();
+
+        filtered_items_as_json_string
     };
 
     view! {
@@ -53,9 +111,10 @@ pub fn TopLevelWithItems() -> impl IntoView {
             <FilterInputAndCheckboxes/>
             <AllFilteredItems
                 filtered_items
-                set_filtered_items
+                set_dummy_signal
             />
         </div>
+        {read_local_storage}
     }
 }
 
@@ -123,21 +182,12 @@ pub fn FilterInputAndCheckboxes() -> impl IntoView {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
-pub struct FilteredItem
-{
-    value   : String,
-    title   : bool,
-    oplink  : bool,
-    comment : bool,
-    username: bool,
-}
 
 #[component]
 pub fn AllFilteredItems
 (
-    filtered_items: ReadSignal<Vec<FilteredItem>>,
-    set_filtered_items: WriteSignal<Vec<FilteredItem>>
+    filtered_items: Vec<FilteredItem>,
+    set_dummy_signal: WriteSignal<i32>,
 )
 -> impl IntoView
 {
@@ -145,7 +195,7 @@ pub fn AllFilteredItems
     view! {
         <div class="all-filtered-items">
             <For
-                each=move || filtered_items.get()
+                each=move || filtered_items.clone()
                 key=|state| state.value.clone()
                 let:filtered_item
             >
@@ -155,8 +205,8 @@ pub fn AllFilteredItems
                     oplink = filtered_item.oplink
                     comment = filtered_item.comment
                     username = filtered_item.username
-                    filtered_items = filtered_items
-                    set_filtered_items = set_filtered_items
+                    set_dummy_signal = set_dummy_signal
+
                 />
             </For>
         </div>
@@ -171,8 +221,7 @@ pub fn FilteredItemWithCheckboxes
     oplink        : bool,
     comment       : bool,
     username      : bool,
-    filtered_items: ReadSignal<Vec<FilteredItem>>,
-    set_filtered_items: WriteSignal<Vec<FilteredItem>>,
+    set_dummy_signal: WriteSignal<i32>,
 )
  -> impl IntoView {
 
@@ -181,9 +230,45 @@ pub fn FilteredItemWithCheckboxes
     let (comment_checkbox  , set_comment_checkbox ) = create_signal(comment );
     let (username_checkbox , set_username_checkbox) = create_signal(username);
 
+    let filtered_value_clone = filtered_value.clone();
+
     let any_checkbox_is_true =  move || {
 
-        set_filtered_items.set(filtered_items.get());
+        let local_storage = window()
+            .unwrap()
+            .local_storage()
+            .unwrap()
+            .unwrap();
+
+        let filtered_items_as_json_string = local_storage
+            .get_item("filtered_items")
+            .unwrap()
+            .unwrap();
+
+        let mut filtered_items: Value = serde_json::from_str(&filtered_items_as_json_string).unwrap();
+
+        let filtered_items_as_object_mut = filtered_items.as_object_mut().unwrap();
+
+        let new_filtered_item = json!({
+            "title": title_checkbox.get(),
+            "oplink": oplink_checkbox.get(),
+            "comment": comment_checkbox.get(),
+            "username": username_checkbox.get(),
+        });
+
+        filtered_items_as_object_mut.insert(filtered_value_clone.to_string(), new_filtered_item);
+
+        let filtered_items_as_json_string = serde_json::to_string_pretty(&filtered_items).unwrap();
+
+        let filtered_items_as_value: Value = serde_json::from_str(&filtered_items_as_json_string).unwrap();
+
+        gloo_log!("filtered_items_before: {:?}", filtered_items_as_value.to_string());
+
+        local_storage
+            .set_item("filtered_items", &filtered_items_as_json_string)
+            .unwrap();
+
+        set_dummy_signal.set(0);
 
         [
             title_checkbox.get()   ,
@@ -193,7 +278,6 @@ pub fn FilteredItemWithCheckboxes
         ]
             .iter()
             .any(|&s| s)
-
     };
 
     view! {
@@ -230,3 +314,4 @@ pub fn FilteredItemWithCheckboxes
         </div>
     }
 }
+
